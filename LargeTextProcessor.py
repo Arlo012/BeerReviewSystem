@@ -9,8 +9,7 @@ class User:
         self.ID = ID
         self.beersConsumed = []
         
-    def AddBeerConsumd(self, beer):
-        self.beersConsumed.append(beer)
+        #TODO beer preference mapping?
     
     
 class Beer:
@@ -72,11 +71,11 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     profileName = "undefined"
     
     reviewList = []
-    beersToProcess = 20000
+    beersToProcess = 30000
     counter = 0
     
-    startTime = time.clock()
-    for rawLine in infile:                          
+    startTime = time.clock()                 #Time for profiling
+    for rawLine in infile:                   #Iterate through every line, one at a time
         if counter >= beersToProcess:        #Only check subset of beers                                        
             break
         line = rawLine.rstrip()              #Remove newline & any unnecessary white space
@@ -103,20 +102,17 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             taste = line.replace('review/taste: ', '')
         elif 'review/overall: ' in line:
             overall = line.replace('review/overall: ', '')
-        elif 'review/reviewTime :' in line:
-            reviewTime = line.replace('review/reviewTime: ', '')
+        elif 'review/time: ' in line:
+            reviewTime = line.replace('review/time: ', '')
         elif 'review/profileName:' in line:
             profileName = line.replace('review/profileName: ', '')
         elif 'review/text: ' in line:
             text = line.replace('review/text: ', '')            
             review = Review(profileName, ratedBeer, aroma, palate, taste, overall, reviewTime, text)
             reviewList.append(review)
-            
-#             print '[INFO]: Found new beer review: ' + name
             counter += 1
             
-            #Reset parser info
-            
+          #Reset parser info
             #Beer Info
             name = ""
             beerID = -1
@@ -135,17 +131,37 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             
             #User
             profileName = "undefined"
-            
+
+#Display parse performance
 reviewTimeToProcess = time.clock() - startTime
 print '[INFO]: Processed ' + str(len(reviewList)) + ' beer reviews in ' + str(reviewTimeToProcess) + ' seconds'
 
-#EXAMPLE READOUT
-strongAleCount = 0
+#Example user-beer mapping
+userBeerMap = {}
 for review in reviewList:
-    if review.beer.style == 'English Strong Ale':
-        strongAleCount += 1
-print 'Found ' + str(strongAleCount) + ' reviews for English strong ales!'
-            
-            
-            
-            
+    user = review.user
+    if user not in userBeerMap:     #Add user to user-beer mapping
+        userBeerMap[user] = [review.beer]
+    else:                           #User already in dictionary; add another beer they reviewed
+        userBeerMap[user].append(review.beer)
+
+#Example user-review mapping
+userReviewMap = {}
+for review in reviewList:
+    user = review.user
+    if user not in userReviewMap:     #Add user to user-review mapping
+        userReviewMap[user] = [review]
+    else:                           #User already in dictionary; add another one of their reviews
+        userReviewMap[user].append(review)
+
+#Average score calculation
+for user in userReviewMap:
+    netScore = 0
+    reviewCount = 0
+    for review in userReviewMap[user]:
+        reviewCount += 1
+        netScore += float(review.overall)
+    averageScore = netScore / reviewCount
+    if reviewCount > 10:
+        print user + ' gave average score of ' + str(averageScore) + ' on ' + str(reviewCount) + ' reviews.'
+        
