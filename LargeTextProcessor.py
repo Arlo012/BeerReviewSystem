@@ -71,8 +71,16 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     profileName = "undefined"
     
     reviewList = []
-    beersToProcess = 30000
+    beersToProcess = 70000
     counter = 0
+    
+    #Create a unique user ID starting at 0
+    actualUserIDtoSetID = {}
+    userIDCounter = 0           #For unique user ID
+    
+    #Create a unique beer ID starting at 0
+    actualBeerIDtoSetID = {}
+    userBeerCounter = 0           #For unique beer ID
     
     startTime = time.clock()                 #Time for profiling
     for rawLine in infile:                   #Iterate through every line, one at a time
@@ -84,6 +92,14 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             name = line.replace('beer/name: ', '')      #Trim the beer/name text out
         elif 'beer/beerId: ' in line:
             beerID = line.replace('beer/beerId: ', '')
+            
+            if beerID in actualBeerIDtoSetID:          #Check if we have already created unique profile ID for this beer
+                beerID = actualBeerIDtoSetID[beerID]
+            else:
+                actualBeerIDtoSetID[beerID] = userBeerCounter
+                beerID = userBeerCounter
+                userBeerCounter += 1
+                
         elif 'beer/brewerId: ' in line:
             brewerID = line.replace('beer/brewerId: ', '')
         elif 'beer/ABV: ' in line:
@@ -106,6 +122,13 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             reviewTime = line.replace('review/time: ', '')
         elif 'review/profileName:' in line:
             profileName = line.replace('review/profileName: ', '')
+            if profileName in actualUserIDtoSetID:          #Check if we have already created unique profile ID for this username
+                profileName = actualUserIDtoSetID[profileName]
+            else:
+                actualUserIDtoSetID[profileName] = userIDCounter
+                profileName = userIDCounter
+                userIDCounter += 1
+            
         elif 'review/text: ' in line:
             text = line.replace('review/text: ', '')            
             review = Review(profileName, ratedBeer, aroma, palate, taste, overall, reviewTime, text)
@@ -131,10 +154,15 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             
             #User
             profileName = "undefined"
+             
+            if counter % 1000 == 0:
+                print 'Processed ' + str(counter)
 
 #Display parse performance
 reviewTimeToProcess = time.clock() - startTime
 print '[INFO]: Processed ' + str(len(reviewList)) + ' beer reviews in ' + str(reviewTimeToProcess) + ' seconds'
+
+#Update users to have unique, sequential IDs
 
 #Example user-beer mapping
 userBeerMap = {}
@@ -144,24 +172,35 @@ for review in reviewList:
         userBeerMap[user] = [review.beer]
     else:                           #User already in dictionary; add another beer they reviewed
         userBeerMap[user].append(review.beer)
-
+ 
 #Example user-review mapping
 userReviewMap = {}
 for review in reviewList:
     user = review.user
     if user not in userReviewMap:     #Add user to user-review mapping
         userReviewMap[user] = [review]
-    else:                           #User already in dictionary; add another one of their reviews
+    else:                             #User already in dictionary; add another one of their reviews
         userReviewMap[user].append(review)
 
+#Find a beer by beer ID
+for review in reviewList:
+    if review.user == 0:
+        print review.beer.name
+    
+
 #Average score calculation
+goodProfiles = 0
+totalUsers = 0
 for user in userReviewMap:
+    totalUsers += 1
     netScore = 0
     reviewCount = 0
     for review in userReviewMap[user]:
         reviewCount += 1
-        netScore += float(review.overall)
-    averageScore = netScore / reviewCount
-    if reviewCount > 10:
-        print user + ' gave average score of ' + str(averageScore) + ' on ' + str(reviewCount) + ' reviews.'
-        
+    if reviewCount >= 2:
+        goodProfiles += 1
+print 'Total profiles with >1 review: ' + str(goodProfiles)
+print 'Total users: ' + str(totalUsers)
+
+
+
