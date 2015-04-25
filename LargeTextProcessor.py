@@ -1,4 +1,5 @@
 import time
+import numpy as np
 
 class User:
     '''
@@ -52,7 +53,7 @@ in above class structures.
 #CHANGE FILEPATH HERE FOR YOUR MACHINE
 with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     #Beer Info
-    name = ""
+    name = "undefined"
     beerID = -1
     brewerID = -1
     abv = 0
@@ -71,15 +72,15 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     profileName = "undefined"
     
     reviewList = []
-    beersToProcess = 70000
+    beersToProcess = 30000
     counter = 0
     
     #Create a unique user ID starting at 0
-    actualUserIDtoSetID = {}
+    originalUserIDtoNewUserIDMap = {}
     userIDCounter = 0           #For unique user ID
     
     #Create a unique beer ID starting at 0
-    actualBeerIDtoSetID = {}
+    originalBeerIDtoNewBeerIDMap = {}
     userBeerCounter = 0           #For unique beer ID
     
     startTime = time.clock()                 #Time for profiling
@@ -93,10 +94,10 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
         elif 'beer/beerId: ' in line:
             beerID = line.replace('beer/beerId: ', '')
             
-            if beerID in actualBeerIDtoSetID:          #Check if we have already created unique profile ID for this beer
-                beerID = actualBeerIDtoSetID[beerID]
+            if beerID in originalBeerIDtoNewBeerIDMap:          #Check if we have already created unique profile ID for this beer
+                beerID = originalBeerIDtoNewBeerIDMap[beerID]
             else:
-                actualBeerIDtoSetID[beerID] = userBeerCounter
+                originalBeerIDtoNewBeerIDMap[beerID] = userBeerCounter
                 beerID = userBeerCounter
                 userBeerCounter += 1
                 
@@ -122,10 +123,10 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             reviewTime = line.replace('review/time: ', '')
         elif 'review/profileName:' in line:
             profileName = line.replace('review/profileName: ', '')
-            if profileName in actualUserIDtoSetID:          #Check if we have already created unique profile ID for this username
-                profileName = actualUserIDtoSetID[profileName]
+            if profileName in originalUserIDtoNewUserIDMap:          #Check if we have already created unique profile ID for this username
+                profileName = originalUserIDtoNewUserIDMap[profileName]
             else:
-                actualUserIDtoSetID[profileName] = userIDCounter
+                originalUserIDtoNewUserIDMap[profileName] = userIDCounter
                 profileName = userIDCounter
                 userIDCounter += 1
             
@@ -164,16 +165,7 @@ print '[INFO]: Processed ' + str(len(reviewList)) + ' beer reviews in ' + str(re
 
 #Update users to have unique, sequential IDs
 
-#Example user-beer mapping
-userBeerMap = {}
-for review in reviewList:
-    user = review.user
-    if user not in userBeerMap:     #Add user to user-beer mapping
-        userBeerMap[user] = [review.beer]
-    else:                           #User already in dictionary; add another beer they reviewed
-        userBeerMap[user].append(review.beer)
- 
-#Example user-review mapping
+#User-review mapping
 userReviewMap = {}
 for review in reviewList:
     user = review.user
@@ -181,26 +173,51 @@ for review in reviewList:
         userReviewMap[user] = [review]
     else:                             #User already in dictionary; add another one of their reviews
         userReviewMap[user].append(review)
-
-#Find a beer by beer ID
-for review in reviewList:
-    if review.user == 0:
-        print review.beer.name
     
+# #Trim all bad profiles <2 reviews
+# badProfiles = []        #Users with only 1 review
+# for user in userReviewMap:
+#     reviewCount = 0
+#     for review in userReviewMap[user]:
+#         reviewCount += 1
+#     if reviewCount == 1:
+#         badProfiles.append(user)
+# 
+# initialUsers =  str(len(userReviewMap))
+# for user in badProfiles:
+#     del userReviewMap[user]
+# 
+# trimmedUserCount = str(len(userReviewMap))
+# print 'Trimmed ' + str(trimmedUserCount) + ' users with only 1 review from the database.'
 
-#Average score calculation
-goodProfiles = 0
-totalUsers = 0
+#Begin prepping for numpy array translation
+
+#Generate list of beers
+beerList = []
+for i in range(0,userBeerCounter):
+    beerList.append(i)
+
+#Generate list of users (straight from keys)
+userList = []
 for user in userReviewMap:
-    totalUsers += 1
-    netScore = 0
-    reviewCount = 0
-    for review in userReviewMap[user]:
-        reviewCount += 1
-    if reviewCount >= 2:
-        goodProfiles += 1
-print 'Total profiles with >1 review: ' + str(goodProfiles)
-print 'Total users: ' + str(totalUsers)
+    userList.append(user)
 
+userBeerReviewArray = np.zeros([len(beerList), len(userList)+2])        #HACK no idea why we need the +2
+print 'Beers: ' + str(len(beerList))
+print 'Users: ' + str(len(userList))
 
+print userList
+print beerList
+
+#Map overall beer review vs user/beer
+for user in userList:
+    reviews = userReviewMap[user]
+    for review in reviews:
+        userBeerReviewArray[review.beer.ID][user] = review.overall
+
+print '[INFO] Finished processing reviews into user-beer-review mapping'
+
+# #For verbose printing (don't try this for >1000)
+# np.set_printoptions(threshold='nan')
+# print userBeerReviewArray
 
