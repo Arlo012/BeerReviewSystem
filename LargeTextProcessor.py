@@ -224,9 +224,9 @@ numpiData = np.array(data)
 
 
 #Create sparse array (compressed 
-userBeerReviewArray = csr_matrix((data, (row,column)), shape=(len(column),len(row)), dtype=int8)
+userBeerReviewArray = csr_matrix((data, (row,column)), shape=(len(column),len(row)), dtype=int)
 
-dumpfile = open("beerArray", 'w')
+dumpfile = open("beerArray.pickle", 'w')
 pickle.dump(userBeerReviewArray, dumpfile)
 
 
