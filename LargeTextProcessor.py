@@ -4,6 +4,7 @@ import sys
 from scipy.sparse import *
 from numpy import int8
 from scipy import float16
+import pickle
 
 class User:
     '''
@@ -52,7 +53,7 @@ Do line-by-line read of the file (won't load it all into memory) and store
 in above class structures.
 '''
 #CHANGE FILEPATH HERE FOR YOUR MACHINE
-with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
+with open("beeradvocate.txt") as infile:
     #Beer Info
     name = "undefined"
     beerID = -1
@@ -221,8 +222,14 @@ numPiRow = np.array(row)
 numPiColumn = np.array(column)
 numpiData = np.array(data)
 
+
 #Create sparse array (compressed 
 userBeerReviewArray = csr_matrix((data, (row,column)), shape=(len(column),len(row)), dtype=int8)
+
+dumpfile = open("beerArray", 'w')
+pickle.dump(userBeerReviewArray, dumpfile)
+
+
 
 
 
