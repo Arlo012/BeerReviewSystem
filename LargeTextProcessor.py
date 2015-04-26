@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import sys
 
 class User:
     '''
@@ -9,8 +10,6 @@ class User:
     def __init__(self, ID):
         self.ID = ID
         self.beersConsumed = []
-        
-        #TODO beer preference mapping?
     
     
 class Beer:
@@ -72,7 +71,7 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     profileName = "undefined"
     
     reviewList = []
-    beersToProcess = 30000
+    beersToProcess = 26214
     counter = 0
     
     #Create a unique user ID starting at 0
@@ -81,7 +80,7 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     
     #Create a unique beer ID starting at 0
     originalBeerIDtoNewBeerIDMap = {}
-    userBeerCounter = 0           #For unique beer ID
+    beerIDCounter = 0           #For unique beer ID
     
     startTime = time.clock()                 #Time for profiling
     for rawLine in infile:                   #Iterate through every line, one at a time
@@ -97,9 +96,9 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             if beerID in originalBeerIDtoNewBeerIDMap:          #Check if we have already created unique profile ID for this beer
                 beerID = originalBeerIDtoNewBeerIDMap[beerID]
             else:
-                originalBeerIDtoNewBeerIDMap[beerID] = userBeerCounter
-                beerID = userBeerCounter
-                userBeerCounter += 1
+                originalBeerIDtoNewBeerIDMap[beerID] = beerIDCounter
+                beerID = beerIDCounter
+                beerIDCounter += 1
                 
         elif 'beer/brewerId: ' in line:
             brewerID = line.replace('beer/brewerId: ', '')
@@ -125,13 +124,14 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             profileName = line.replace('review/profileName: ', '')
             if profileName in originalUserIDtoNewUserIDMap:          #Check if we have already created unique profile ID for this username
                 profileName = originalUserIDtoNewUserIDMap[profileName]
-            else:
+            else:                                                    #Create new mapping of real user ID to next unique ID
                 originalUserIDtoNewUserIDMap[profileName] = userIDCounter
-                profileName = userIDCounter
+                profileName = userIDCounter             #Replace real username with user ID 
                 userIDCounter += 1
-            
+        
         elif 'review/text: ' in line:
-            text = line.replace('review/text: ', '')            
+#             text = line.replace('review/text: ', '')            
+            text = ''
             review = Review(profileName, ratedBeer, aroma, palate, taste, overall, reviewTime, text)
             reviewList.append(review)
             counter += 1
@@ -157,12 +157,18 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             profileName = "undefined"
              
             if counter % 1000 == 0:
-                print 'Processed ' + str(counter)
+                print 'Processed ' + str(counter) + ' reviews'
+                
+print
+print '[DEBUG] Last user has ID = ' + str(userIDCounter-1)
+print '[DEBUG] Last beer has ID = ' + str(beerIDCounter-1)
+print
 
 #Display parse performance
 reviewTimeToProcess = time.clock() - startTime
 print '[INFO]: Processed ' + str(len(reviewList)) + ' beer reviews in ' + str(reviewTimeToProcess) + ' seconds'
-
+print 'Total of: ' + str(sys.getsizeof(reviewList)) + ' bytes'
+print
 #Update users to have unique, sequential IDs
 
 #User-review mapping
@@ -194,30 +200,44 @@ for review in reviewList:
 
 #Generate list of beers
 beerList = []
-for i in range(0,userBeerCounter):
+for i in range(0,beerIDCounter):
     beerList.append(i)
 
 #Generate list of users (straight from keys)
 userList = []
 for user in userReviewMap:
     userList.append(user)
+    
+print '[DEBUG] Last user ID in list = ' + str(userList[len(userList)-1])
+print '[DEBUG] Last beer ID in list = ' + str(beerList[len(beerList)-1])
+print
 
-userBeerReviewArray = np.zeros([len(beerList), len(userList)+2])        #HACK no idea why we need the +2
-print 'Beers: ' + str(len(beerList))
-print 'Users: ' + str(len(userList))
+#TODO user list dimension is not long enough... sometimes overruns in below for loop. WHY?
+userBeerReviewArray = np.zeros([len(beerList), len(userList)+5])        #Initialize numpy array
 
+print 'Size of numpy array: ' + str(userBeerReviewArray.shape)
+print 'Total Users: ' + str(len(userList))
+print 'Total Beers: ' + str(len(beerList))
+print
+
+print 'User list: '
 print userList
+print
+print 'Beer list: '
 print beerList
+print
 
 #Map overall beer review vs user/beer
 for user in userList:
     reviews = userReviewMap[user]
     for review in reviews:
-        userBeerReviewArray[review.beer.ID][user] = review.overall
+        try:
+            userBeerReviewArray[review.beer.ID][user] = review.overall
+        except Exception as e:
+            print '[ERROR] Failed to place a review in the array: ' + str(e)
+            print 'Problem occured on user ID = ' + str(user) + ' for beer ID = ' + str(review.beer.ID)  
+            print
 
 print '[INFO] Finished processing reviews into user-beer-review mapping'
 
-# #For verbose printing (don't try this for >1000)
-# np.set_printoptions(threshold='nan')
-# print userBeerReviewArray
 
