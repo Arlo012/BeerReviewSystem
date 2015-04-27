@@ -70,7 +70,7 @@ if doBigMatrixDotProduct:
     print '\n[INFO] Performing multiplication on transpose....'
     startTime = time.clock()                 #Time for profiling
     transpose = userBeerReviewArray.transpose(copy=True)
-    
+
     resultantMatrix = userBeerReviewArray * transpose
     
     reviewTimeToProcess = time.clock() - startTime
@@ -97,15 +97,46 @@ else:
     except Exception as e:
         print '[ERROR] Opening pickled filed failed!: ' + str(e)
     
-#Divide by magnitudes
-print '[INFO] Dividing multiplied matrix by magnitude array (part 1)'
-rowMagnitudeArrayDivisor = 1/rowMagnitudeArray
-resultantMatrix.multiply(rowMagnitudeArrayDivisor)
+    
+#Split array into manageable parts in memory (rows x #beers)
+rows = 100
+maxRows = resultantMatrix.shape[1]
+rowMagnitudeArrayDivisor = 1/rowMagnitudeArray      #Divisor for converting to cosine form    
 
-print '[INFO] Dividing multiplied matrix by magnitude array (part 2)'
-rowMagnitudeArrayDivisor.transpose()
-resultantMatrix.multiply(rowMagnitudeArrayDivisor)
+print '\n[INFO] Beginning to calculate user similarity matrix...'
+for i in range(0,100,maxRows):
+    slicedMatrix = resultantMatrix[i:i+rows]
+    
+    slicedMatrix = slicedMatrix.multiply(rowMagnitudeArrayDivisor)
+    
+    testArrayTrans = slicedMatrix.transpose()                       #Transpose in order to multiply by sliced row magnitude
+    slicedRowMag = rowMagnitudeArrayDivisor[i:i+rows]                 #Slice by subset
+    testArrayTrans = np.multiply(testArrayTrans, slicedRowMag)      #By ELEMENT multiplication
+    
+    restoredMatrix = testArrayTrans.transpose()                     #Back to original dimensions
+    
+    resultantMatrix[i:i+rows] = restoredMatrix
+    
+    if i % int(0.01*maxRows) == 0:
+        bar_length = 100
+        percent = float(i) / maxRows.shape[0]
+        hashes = '#' * int(round(percent * bar_length))
+        spaces = ' ' * (bar_length - len(hashes))
+        sys.stdout.write("\rPercent: [{0}] {1}%".format(hashes + spaces, int(round(percent * 100))))
+        sys.stdout.flush()
 
-print '[INFO] Resultant matrix division complete!'
+print '[INFO] Similarity matrix complete!'
+# print str(testArrayTrans[0][0]) + ', ' + str(testArrayTrans[0][0])
+    
+# #Divide by magnitudes
+# print '[INFO] Dividing multiplied matrix by magnitude array (part 1)'
+# rowMagnitudeArrayDivisor = 1/rowMagnitudeArray
+# resultantMatrix.multiply(rowMagnitudeArrayDivisor)
+# 
+# print '[INFO] Dividing multiplied matrix by magnitude array (part 2)'
+# rowMagnitudeArrayDivisor.transpose()
+# resultantMatrix.multiply(rowMagnitudeArrayDivisor)
+# 
+# print '[INFO] Resultant matrix division complete!'
 
 
