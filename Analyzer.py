@@ -76,17 +76,17 @@ if doBigMatrixDotProduct:
     reviewTimeToProcess = time.clock() - startTime
     print '[INFO] Completed multiplication on transpose in ' + str(reviewTimeToProcess) + ' seconds'
     
-#     #Pickle the dot product
-#     try:
-#         print '[INFO] Pickling the dot product matrix out to dotProductMatrix.pickle'
-#         #Dump out to file
-#         dumpfile = open("dotProductMatrix.pickle", 'w')
-#         pickle.dump(resultantMatrix, dumpfile)
-#         print '[INFO] Pickling successful'
-#     
-#     except Exception as e:
-#         print '[ERROR] Pickling unsuccessful: '
-#         print e
+    #Pickle the dot product
+    try:
+        print '[INFO] Pickling the dot product matrix out to dotProductMatrix.pickle'
+        #Dump out to file
+        dumpfile = open("dotProductMatrix.pickle", 'w')
+        pickle.dump(resultantMatrix, dumpfile)
+        print '[INFO] Pickling successful'
+     
+    except Exception as e:
+        print '[ERROR] Pickling unsuccessful: '
+        print e
     
 else:
     try:
@@ -103,29 +103,30 @@ rows = 100
 maxRows = resultantMatrix.shape[1]
 rowMagnitudeArrayDivisor = 1/rowMagnitudeArray      #Divisor for converting to cosine form    
 
-print '\n[INFO] Beginning to calculate user similarity matrix...'
-for i in range(0,100,maxRows):
-    slicedMatrix = resultantMatrix[i:i+rows]
-    
-    slicedMatrix = slicedMatrix.multiply(rowMagnitudeArrayDivisor)
-    
-    testArrayTrans = slicedMatrix.transpose()                       #Transpose in order to multiply by sliced row magnitude
-    slicedRowMag = rowMagnitudeArrayDivisor[i:i+rows]                 #Slice by subset
-    testArrayTrans = np.multiply(testArrayTrans, slicedRowMag)      #By ELEMENT multiplication
-    
-    restoredMatrix = testArrayTrans.transpose()                     #Back to original dimensions
-    
-    resultantMatrix[i:i+rows] = restoredMatrix
-    
-    if i % int(0.01*maxRows) == 0:
-        bar_length = 100
-        percent = float(i) / maxRows.shape[0]
-        hashes = '#' * int(round(percent * bar_length))
-        spaces = ' ' * (bar_length - len(hashes))
-        sys.stdout.write("\rPercent: [{0}] {1}%".format(hashes + spaces, int(round(percent * 100))))
-        sys.stdout.flush()
+# print '\n[INFO] Beginning to calculate user similarity matrix...'
+# for i in range(0,100,maxRows):
+#     slicedMatrix = resultantMatrix[i:i+rows]
+#     
+#     slicedMatrix = slicedMatrix.multiply(rowMagnitudeArrayDivisor)
+#     
+#     testArrayTrans = slicedMatrix.transpose()                       #Transpose in order to multiply by sliced row magnitude
+#     slicedRowMag = rowMagnitudeArrayDivisor[i:i+rows]                 #Slice by subset
+#     testArrayTrans = np.multiply(testArrayTrans, slicedRowMag)      #By ELEMENT multiplication
+#     
+#     restoredMatrix = testArrayTrans.transpose()                     #Back to original dimensions
+#     
+#     resultantMatrix[i:i+rows] = restoredMatrix
+#     
+#     if i % int(0.01*maxRows) == 0:
+#         bar_length = 100
+#         percent = float(i) / maxRows.shape[0]
+#         hashes = '#' * int(round(percent * bar_length))
+#         spaces = ' ' * (bar_length - len(hashes))
+#         sys.stdout.write("\rPercent: [{0}] {1}%".format(hashes + spaces, int(round(percent * 100))))
+#         sys.stdout.flush()
+# 
+# print '[INFO] Similarity matrix complete!'
 
-print '[INFO] Similarity matrix complete!'
 # print str(testArrayTrans[0][0]) + ', ' + str(testArrayTrans[0][0])
     
 # #Divide by magnitudes
