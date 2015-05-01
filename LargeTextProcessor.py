@@ -21,6 +21,8 @@ class Beer:
         self.brewerID = int(bID)
         self.abv = float(abv)
         self.style = style
+        
+        self.matrixIndex = -1           #For referencing column on matrix (default invalid to -1 to catch errors)
     
 class Review:
     '''
@@ -29,18 +31,34 @@ class Review:
     '''
     
     def __init__(self, user, beer, aroma, palate, taste, overall, reviewTime, text):
-        self.user = user
-        self.beer = beer
+        self.user = user        #User object
+        self.beer = beer        #Beer object
+        
+        #0-50 review categories
         self.aroma = int8(float(aroma)*10)       #Convert to int 0-50 to save on memory
         self.palate = int8(float(palate)*10)
         self.taste = int8(float(taste)*10)
         self.overall = int8(float(overall)*10)
+        
+        #Other parameters
         self.reviewTime = long(reviewTime)
         self.text = text
 
+class User:
+    '''
+    TODO document me
+    '''
+    
+    def __init__(self, userName):
+        self.username = userName        #String
+        self.matrixIndex = -1           #For referencing row on matrix (default invalid to -1 to catch errors)
+        self.reviews = []               #Contains list of reviews made by this user
+        
+    def AddReview(self, review):
+        self.reviews.append(review)
 
-beersToProcess = 1586300/64             #How many reviews to we want to process
-overwritePickle = False              #Overwrite the pickle output file with this run?
+reviewsToProcess = 1586300/2             #How many reviews to we want to process
+overwritePickle = True                 #Overwrite the pickle output file with this run?
 
 '''
 Do line-by-line read of the file (won't load it all into memory) and store
@@ -67,17 +85,8 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     #User
     profileName = "undefined"
     
-    reviewList = []
+    userMap = {}
     counter = 0
-    
-    #Create a unique user ID starting at 0
-    originalUsernameToNewUserIDMap = {}
-    userReviewCount = np.zeros(30000)
-    userIDCounter = 0           #For unique user ID
-    
-    #Create a unique beer ID starting at 0
-    originalBeerIDtoNewBeerIDMap = {}
-    beerIDCounter = 0           #For unique beer ID
     
     print '[INFO] Beginning to parse reviews'
     if not overwritePickle:
@@ -85,13 +94,27 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
         
     startTime = time.clock()                 #Time for profiling
     for rawLine in infile:                   #Iterate through every line, one at a time
-        if counter >= beersToProcess:        #Only check subset of beers                                        
+        if counter >= reviewsToProcess:        #Only check subset of beers                                        
             break
         
-        if rawLine.isspace():       #Space separator
-            #Create the review
-            review = Review(profileName, ratedBeer, aroma, palate, taste, overall, reviewTime, text)
-            reviewList.append(review)
+        if rawLine.isspace():       #Space separator between reviews to mark end of review
+            if profileName not in userMap:  #Note: profileName = user.username
+                #Create the review
+                user = User(profileName)                                #Create user object with only profile name
+                ratedBeer = Beer(name, beerID, brewerID, abv, style)    #Create beer object using parsed beer params
+                
+                review = Review(user, ratedBeer, aroma, palate, taste, overall, reviewTime, text)   #Create review linking to user and beer
+                user.AddReview(review)              #Allow user to track this review
+                
+                userMap[user.username] = user      #Add this user to usermap
+            else:       #Grab user from map and just add another review to him
+                user = userMap[profileName]
+                ratedBeer = Beer(name, beerID, brewerID, abv, style)    #Create beer object using parsed beer params
+                
+                review = Review(user, ratedBeer, aroma, palate, taste, overall, reviewTime, text)   #Create review linking to user and beer
+                user.AddReview(review)              #Allow user to track this review
+            
+            #Append these users to tracked lists
             counter += 1
             
           #Reset parser info
@@ -114,9 +137,10 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             #User
             profileName = "undefined"
             
-            if counter % int(0.01*beersToProcess) == 0:
+            #Progress bar
+            if counter % int(0.01*reviewsToProcess) == 0:
                 bar_length = 100
-                percent = float(counter) / beersToProcess
+                percent = float(counter) / reviewsToProcess
                 hashes = '#' * int(round(percent * bar_length))
                 spaces = ' ' * (bar_length - len(hashes))
                 sys.stdout.write("\rProgress: [{0}] {1}%".format(hashes + spaces, int(round(percent * 100))))
@@ -128,22 +152,12 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             name = line.replace('beer/name: ', '')      #Trim the beer/name text out
         elif 'beer/beerId: ' in line:
             beerID = line.replace('beer/beerId: ', '')
-            
-            if beerID in originalBeerIDtoNewBeerIDMap:          #Check if we have already created unique profile ID for this beer
-                beerID = originalBeerIDtoNewBeerIDMap[beerID]
-            else:
-                originalBeerIDtoNewBeerIDMap[beerID] = beerIDCounter
-                beerID = beerIDCounter
-                beerIDCounter += 1
-                
         elif 'beer/brewerId: ' in line:
             brewerID = line.replace('beer/brewerId: ', '')
         elif 'beer/ABV: ' in line:
             abv = line.replace('beer/ABV: ', '')
         elif 'beer/style: ' in line:
             style = line.replace('beer/style: ', '')
-            ratedBeer = Beer(name, beerID, brewerID, abv, style)    #All beer info before this; create obj
-       
         elif 'review/appearance: ' in line:
             appearance = line.replace('review/appearance: ', '')
         elif 'review/aroma: ' in line:
@@ -158,94 +172,80 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             reviewTime = line.replace('review/time: ', '')
         elif 'review/profileName:' in line:
             profileName = line.replace('review/profileName: ', '')
-            if profileName in originalUsernameToNewUserIDMap:          #Check if we have already created unique profile ID for this username
-                profileName = originalUsernameToNewUserIDMap[profileName]   #Use this mapping for the new profile name
-                userReviewCount[profileName] += 1   #Track how many reviews on this user by index
-            else:                                                    #Create new mapping of real user ID to next unique ID
-                originalUsernameToNewUserIDMap[profileName] = userIDCounter
-                profileName = userIDCounter             #Replace real username with user ID
-                userReviewCount[profileName] += 1       #Track how many reviews on this user by index
-                userIDCounter += 1
         
         elif 'review/text: ' in line:
 #             text = line.replace('review/text: ', '')            
             text = ''           #Toss out the review text for sake of memory
-                  
-                
+                              
 #Display parse performance
 reviewTimeToProcess = time.clock() - startTime
-print '\n[INFO]: Processed ' + str(len(reviewList)) + ' beer reviews in ' + str(reviewTimeToProcess) + ' seconds'
-print '[INFO] Total of: ' + str(sys.getsizeof(reviewList)) + ' bytes'
+print '\n[INFO]: Processed ' + str(counter) + ' beer reviews in ' + str(reviewTimeToProcess) + ' seconds'
+print '[INFO] Total of: ' + str(sys.getsizeof(userMap)) + ' bytes'
 print '-----------------------------'
 
+print '\n[INFO] Trimming users below the review threshold....'
+#Remove users below review threshold
+minReviewThreshold = 3
+usersToDelete = []
+usersInDatabase = 0
+for user in userMap:
+    usersInDatabase += 1
+    reviewCount = len(userMap[user].reviews)
+    if reviewCount < minReviewThreshold:
+        usersToDelete.append(user)
+        
+print '[INFO] Removing ' + str(len(usersToDelete)) + ' users from the database (of ' + str(usersInDatabase) + ') + that fell below review threshold...'
+for user in usersToDelete:
+    del userMap[user]
 
-#User-review mapping 
-#FIXME trimming users like this leaves some beers with no reviews
-print '\n[INFO] Building user review map and trimming users below minimum review threshold...'
-userReviewMap = {}
-minimumReviewThreshold = 1      #Set higher to trim
-trimmedReviewCount = 0
-for review in reviewList:
-    user = review.user
-    if int(userReviewCount[user]) < minimumReviewThreshold:
-        if user not in userReviewMap:     #Add user to user-review mapping
-            userReviewMap[user] = [review]
-        else:                             #User already in dictionary; add another one of their reviews
-            userReviewMap[user].append(review)
-    else:
-        trimmedReviewCount += 1
-        '[DEBUG] User ' + str(user) + ' did not meet minimum review requirement'
-  
-print '[INFO] Trimmed ' + str(trimmedReviewCount) + ' reviews below from users below review threshold from the database from total of ' + str(counter) + ' reviews.'
- 
-print '\n[INFO] Rebuilding valid users into new dictionary mapping...'
-uniqueIDCounter = 0     #A counter to build a unique ID now for only VALID users (above review threshold)
-trimmedUserReviewMap = {}
-users = userReviewMap.keys()
-for user in users:
-    trimmedUserReviewMap[uniqueIDCounter] = user              #Track old ID for reverse lookup
-    userReviewMap[uniqueIDCounter] = userReviewMap[user]      #Update new unique ID to be key over old one
-    uniqueIDCounter += 1
-         
-print '[INFO] Finished building valid user unique ID map'
+print '[INFO] Finished trimming users from the database!'
+print '-----------------------------'
+
+print '\n[INFO] Assigning each user/beer a unique ID for matrix indexing...'
+uniqueUserIDCounter = 0
+uniqueBeerIDCounter = 0
+beerMap = {}                    #Map beer name to beer object
+for user in userMap:
+    userMap[user].matrixIndex = uniqueUserIDCounter
+    uniqueUserIDCounter += 1
+    
+    reviews = userMap[user].reviews
+    for review in reviews:
+        beer = review.beer      #Grab beer from review
+        if beer.name not in beerMap:
+            beer.matrixIndex = uniqueBeerIDCounter
+            beerMap[beer.name] = beer
+            uniqueBeerIDCounter += 1
+        else:
+            review.beer = beerMap[beer.name]       #overwrite this beer object with the object that was already found (they should have the same stats)
+print '[INFO] All users and beers now have a unique ID!'
+print '-----------------------------'
 
 #Begin prepping for numpy array translation
 print '\n[INFO] Transferring data into numpy arrays for placement into sparse matrix....'
 
-#Generate list of beers
-beerList = []
-for i in range(0,beerIDCounter):
-    beerList.append(i)
-    
-if(len(beerList) != len(set(beerList))):
-    print '[ERROR] Duplicate beers found in the beer list!'
-
 #Generate list of users (straight from keys)
-userList = []
-for user in userReviewMap:
-    userList.append(user)
-    
-if(len(userList) != len(set(userList))):
-    print '[ERROR] Duplicate users found in the user list!'
+userList = userMap.keys()
     
 #Convert into format of row,column,data coordinates (see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
 row = []            #Users (this is the Y coordinate of where data goes in the matrix)
 column = []         #Beers (this is the X coordinate of where data goes in the matrix)
 data = []           #Reviews (this is the data in the matrix)
 
-#TODO there are some beers that have only been reviewed by the people we just deleted (if review threshold >1)....
-
 for user in userList:      #A single row
-    for review in userReviewMap[user]:
-        row.append(user)            #User ID as row
-        column.append(review.beer.ID)
+    for review in userMap[user].reviews:
+        userIndex = userMap[user].matrixIndex
+        beerIndex = review.beer.matrixIndex
+        
+#         if beerIndex == -1:
+#             print '[ERROR] Invalid matrix index for ' + review.beer.name
+        if userIndex == -1:
+            print '[ERROR] Invalid matrix index for ' + user.username
+        
+        row.append(userIndex)       #matrix index generated above as row
+        column.append(beerIndex)    #matrix index generated above as column
         data.append(review.overall)
-# print '[DEBUG] Last mapping: (' + str(row[len(row)-1]) + ', ' + str(column[len(column)-1]) + ')'
-
-#Check if user has at least one review:
-for user in userReviewMap:
-    if len(userReviewMap[user]) == 0:
-        print '[ERROR] A user was pulled from the database with no reviews. What happened?! This will break the analyzer with divide by zero problems'
+print '[DEBUG] Last mapping: (' + str(row[len(row)-1]) + ', ' + str(column[len(column)-1]) + ')'
 
 #Convert all to numpy arrays
 numPiRow = np.array(row)
@@ -253,12 +253,14 @@ numPiColumn = np.array(column)
 numpiData = np.array(data)
 
 #Create sparse array (compressed by row)
-print '[INFO] Creating sparse matrix with dimensions (' + str(len(userList)) + ', ' + str(len(beerList)) + ')'
-userBeerReviewArray = csr_matrix((numpiData, (numPiRow, numPiColumn)), shape=(len(userList),len(beerList)), dtype=int)
+print '[INFO] Creating sparse matrix with dimensions (' + str(len(userList)) + ', ' + str(len(beerMap.keys())) + ')...'
+userBeerReviewArray = csr_matrix((numpiData, (numPiRow, numPiColumn)), shape=(len(userList),len(beerMap.keys())), dtype=int)
+print '[INFO] Sparse matrix created!'
+print '-----------------------------'
 
 #Dump out to file
 if overwritePickle:
-    print '[INFO] Pickling sparse matrix out to beerArray.pickle'
+    print '\n[INFO] Pickling sparse matrix out to beerArray.pickle'
     try:
         dumpfile = open("beerArray.pickle", 'w')
         pickle.dump(userBeerReviewArray, dumpfile)
@@ -266,6 +268,6 @@ if overwritePickle:
     except Exception as e:
         print '[ERROR] Pickling operation failed!: ' + str(e)
 else:
-    print '[INFO] Pickle overwrite disabled. Not writing out to filesystem'
+    print '\n[INFO] Pickle overwrite disabled. Not writing out to filesystem'
     
 
