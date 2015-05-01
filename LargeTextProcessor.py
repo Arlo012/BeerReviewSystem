@@ -57,7 +57,7 @@ class User:
     def AddReview(self, review):
         self.reviews.append(review)
 
-reviewsToProcess = 1586300/2             #How many reviews to we want to process
+reviewsToProcess = 1586300          #How many reviews to we want to process
 overwritePickle = True                 #Overwrite the pickle output file with this run?
 
 '''
@@ -65,7 +65,7 @@ Do line-by-line read of the file (won't load it all into memory) and store
 in above class structures.
 '''
 #CHANGE FILEPATH HERE FOR YOUR MACHINE
-with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
+with open("beeradvocate.txt") as infile:
     #Beer Info
     name = "undefined"
     beerID = -1
@@ -185,7 +185,7 @@ print '-----------------------------'
 
 print '\n[INFO] Trimming users below the review threshold....'
 #Remove users below review threshold
-minReviewThreshold = 3
+minReviewThreshold = 100
 usersToDelete = []
 usersInDatabase = 0
 for user in userMap:
@@ -260,11 +260,19 @@ print '-----------------------------'
 
 #Dump out to file
 if overwritePickle:
-    print '\n[INFO] Pickling sparse matrix out to beerArray.pickle'
+    print '\n[INFO] Pickling sparse matrix, userMap, and beerMap...'
     try:
-        dumpfile = open("beerArray.pickle", 'w')
-        pickle.dump(userBeerReviewArray, dumpfile)
+        matrixDump = open("userBeerReviewMatrix.pickle", 'w')
+        #userMapDump = open("userMap.pickle", 'w')
+        beerMapDump = open("beerMap.pickle", 'w')
+
+        pickle.dump(userBeerReviewArray, matrixDump)
         print '[INFO] Finished pickling sparse matrix'
+        #pickle.dump(userMap, userMapDump)
+        #print '[INFO] Finished pickling userMap'
+        pickle.dump(beerMap, beerMapDump)
+        print '[INFO] Finished pickling beerMap'
+        
     except Exception as e:
         print '[ERROR] Pickling operation failed!: ' + str(e)
 else:
