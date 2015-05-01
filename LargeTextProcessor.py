@@ -39,8 +39,8 @@ class Review:
         self.text = text
 
 
-beersToProcess = 1586300             #How many reviews to we want to process
-overwritePickle = True              #Overwrite the pickle output file with this run?
+beersToProcess = 1586300/64             #How many reviews to we want to process
+overwritePickle = False              #Overwrite the pickle output file with this run?
 
 '''
 Do line-by-line read of the file (won't load it all into memory) and store
@@ -72,6 +72,7 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
     
     #Create a unique user ID starting at 0
     originalUsernameToNewUserIDMap = {}
+    userReviewCount = np.zeros(30000)
     userIDCounter = 0           #For unique user ID
     
     #Create a unique beer ID starting at 0
@@ -159,50 +160,57 @@ with open("/media/eljefe/BC7A0ADA7A0A9176/beeradvocate.txt") as infile:
             profileName = line.replace('review/profileName: ', '')
             if profileName in originalUsernameToNewUserIDMap:          #Check if we have already created unique profile ID for this username
                 profileName = originalUsernameToNewUserIDMap[profileName]   #Use this mapping for the new profile name
+                userReviewCount[profileName] += 1   #Track how many reviews on this user by index
             else:                                                    #Create new mapping of real user ID to next unique ID
                 originalUsernameToNewUserIDMap[profileName] = userIDCounter
-                profileName = userIDCounter             #Replace real username with user ID 
+                profileName = userIDCounter             #Replace real username with user ID
+                userReviewCount[profileName] += 1       #Track how many reviews on this user by index
                 userIDCounter += 1
         
         elif 'review/text: ' in line:
 #             text = line.replace('review/text: ', '')            
             text = ''           #Toss out the review text for sake of memory
-            
-               
+                  
                 
 #Display parse performance
 reviewTimeToProcess = time.clock() - startTime
 print '\n[INFO]: Processed ' + str(len(reviewList)) + ' beer reviews in ' + str(reviewTimeToProcess) + ' seconds'
 print '[INFO] Total of: ' + str(sys.getsizeof(reviewList)) + ' bytes'
 print '-----------------------------'
-#Update users to have unique, sequential IDs
 
-#User-review mapping
+
+#User-review mapping 
+#FIXME trimming users like this leaves some beers with no reviews
+print '\n[INFO] Building user review map and trimming users below minimum review threshold...'
 userReviewMap = {}
+minimumReviewThreshold = 1      #Set higher to trim
+trimmedReviewCount = 0
 for review in reviewList:
     user = review.user
-    if user not in userReviewMap:     #Add user to user-review mapping
-        userReviewMap[user] = [review]
-    else:                             #User already in dictionary; add another one of their reviews
-        userReviewMap[user].append(review)
-    
-# #Trim all bad profiles <2 reviews
-# badProfiles = []        #Users with only 1 review
-# for user in userReviewMap:
-#     reviewCount = 0
-#     for review in userReviewMap[user]:
-#         reviewCount += 1
-#     if reviewCount == 1:
-#         badProfiles.append(user)
-# 
-# initialUsers =  str(len(userReviewMap))
-# for user in badProfiles:
-#     del userReviewMap[user]
-# 
-# trimmedUserCount = str(len(userReviewMap))
-# print 'Trimmed ' + str(trimmedUserCount) + ' users with only 1 review from the database.'
+    if int(userReviewCount[user]) < minimumReviewThreshold:
+        if user not in userReviewMap:     #Add user to user-review mapping
+            userReviewMap[user] = [review]
+        else:                             #User already in dictionary; add another one of their reviews
+            userReviewMap[user].append(review)
+    else:
+        trimmedReviewCount += 1
+        '[DEBUG] User ' + str(user) + ' did not meet minimum review requirement'
+  
+print '[INFO] Trimmed ' + str(trimmedReviewCount) + ' reviews below from users below review threshold from the database from total of ' + str(counter) + ' reviews.'
+ 
+print '\n[INFO] Rebuilding valid users into new dictionary mapping...'
+uniqueIDCounter = 0     #A counter to build a unique ID now for only VALID users (above review threshold)
+trimmedUserReviewMap = {}
+users = userReviewMap.keys()
+for user in users:
+    trimmedUserReviewMap[uniqueIDCounter] = user              #Track old ID for reverse lookup
+    userReviewMap[uniqueIDCounter] = userReviewMap[user]      #Update new unique ID to be key over old one
+    uniqueIDCounter += 1
+         
+print '[INFO] Finished building valid user unique ID map'
 
 #Begin prepping for numpy array translation
+print '\n[INFO] Transferring data into numpy arrays for placement into sparse matrix....'
 
 #Generate list of beers
 beerList = []
@@ -217,13 +225,6 @@ userList = []
 for user in userReviewMap:
     userList.append(user)
     
-lastUser = 0
-for i in range(1,len(userList)-1):
-    user = userList[i]
-    if user - lastUser != 1:
-        print user
-    lastUser = user
-
 if(len(userList) != len(set(userList))):
     print '[ERROR] Duplicate users found in the user list!'
     
@@ -232,12 +233,14 @@ row = []            #Users (this is the Y coordinate of where data goes in the m
 column = []         #Beers (this is the X coordinate of where data goes in the matrix)
 data = []           #Reviews (this is the data in the matrix)
 
+#TODO there are some beers that have only been reviewed by the people we just deleted (if review threshold >1)....
+
 for user in userList:      #A single row
     for review in userReviewMap[user]:
         row.append(user)            #User ID as row
         column.append(review.beer.ID)
         data.append(review.overall)
-print '[DEBUG] Last mapping: (' + str(row[len(row)-1]) + ', ' + str(column[len(column)-1]) + ')'
+# print '[DEBUG] Last mapping: (' + str(row[len(row)-1]) + ', ' + str(column[len(column)-1]) + ')'
 
 #Check if user has at least one review:
 for user in userReviewMap:
