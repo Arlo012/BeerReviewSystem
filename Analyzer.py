@@ -6,138 +6,125 @@ from numpy import int8
 from scipy import float16
 import pickle
 
-calculateMagnitudeVector = False        #Re-calculate magnitude vector
-doBigMatrixDotProduct = True            #Multiply transpose & matrix
+calculateSimilarityMatrix = False		#Re-calculate similarity matrix from user-beer-review sparse matrix?
+repickleSimilarityMatrix = False		#Over-write similarity matrix? Note it is a BIG file... (~1.5gb)
+reviewThresholdString = "-T25"				#File extension for review threshold (set in largeTextProcessor), #=num reviews
 
-#Open the serialized user-beer review sparse array from pickled file
-try:
-    print '[INFO] Reading serialized (PICKLED!) user-beer-review array.....'
-    file = open("beerArray.pickle", 'r')
-    userBeerReviewArray = pickle.load(file)
-    print '[INFO] Successfully opened pickled user-beer-review array!'
-except Exception as e:
-    print '[ERROR] Opening pickled filed failed!: ' + str(e)
+if calculateSimilarityMatrix:
+	if repickleSimilarityMatrix:
+		print '[WARNING] This is a TEST run! The output will not be pickled.'
+	
+	# Open the serialized user-beer review sparse array from pickled file
+	try:
+		print '[INFO] Reading serialized (PICKLED!) user-beer-review matrix.....'
+		file = open("userBeerReviewMatrix" + reviewThresholdString + ".pickle", 'r')
+		userBeerReviewMatrix = pickle.load(file)
+		print '[INFO] Successfully opened pickled user-beer-review matrix!'
+	except Exception as e:
+		print '[ERROR] Opening pickled file failed!: ' + str(e)
 
-#Calculate/load magnitude vector
-if calculateMagnitudeVector:
-    rowMagnitudes = []
-    print '\n[INFO] Calculating magnitude vectors.....'
-    for i in range(0, userBeerReviewArray.shape[0]):
-        row = userBeerReviewArray.getrow(i)
-        multiplied = row.multiply(row)
-        sum = multiplied.sum()
-        magnitude = sum ** 0.5
-        if magnitude == 0:
-            print
-            print '[ERROR] Zero magnitude user review row detected. VECTOR INCOMPLETE!'
-            break
-        else:
-            rowMagnitudes.append(magnitude)
-        
-        #Progress bar lifted from http://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
-        if i % int(0.01*userBeerReviewArray.shape[0]) == 0:
-            bar_length = 100
-            percent = float(i) / userBeerReviewArray.shape[0]
-            hashes = '#' * int(round(percent * bar_length))
-            spaces = ' ' * (bar_length - len(hashes))
-            sys.stdout.write("\rPercent: [{0}] {1}%".format(hashes + spaces, int(round(percent * 100))))
-            sys.stdout.flush()
-            
-    print '\n[INFO] Finished calculated review magnitude vector'
-    rowMagnitudeArray = np.array(rowMagnitudes)
-    
-    try:
-        print '[INFO] Pickling the row magnitude array out to magnitudeVector.pickle....'
-        #Dump out to file
-        dumpfile = open("magnitudeVector.pickle", 'w')
-        pickle.dump(rowMagnitudeArray, dumpfile)
-        print '[INFO] Pickling successful'
-        
-    except Exception as e:
-        print '[ERROR] Pickling unsuccessful: '
-        print e
-else:
-    try:
-        print '\n[INFO] Reading serialized (PICKLED!) magnitude vector....'
-        file = open("magnitudeVector.pickle", 'r')
-        rowMagnitudeArray = pickle.load(file)
-        print '[INFO] Successfully opened pickled magnitude vector!'
-    except Exception as e:
-        print '[ERROR] Opening pickled filed failed!: ' + str(e)
-    
-#Calculate/load dot product
-if doBigMatrixDotProduct:
-    print '\n[INFO] Performing multiplication on transpose....'
-    startTime = time.clock()                 #Time for profiling
-    transpose = userBeerReviewArray.transpose(copy=True)
+	#Calculate/load magnitude vector
+	rowMagnitudes = []
+	print '\n[INFO] Calculating magnitude vectors.....'
+	for i in range(0, userBeerReviewMatrix.shape[0]):
+		row = userBeerReviewMatrix.getrow(i)
+		multiplied = row.multiply(row)
+		sum = multiplied.sum()
+		magnitude = sum ** 0.5
+		if magnitude == 0:
+			print
+			print '[ERROR] Zero magnitude user review row detected. VECTOR INCOMPLETE!'
+			break
+		else:
+			rowMagnitudes.append(magnitude)
+		
+		#Progress bar lifted from http://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
+		if i % int(0.01*userBeerReviewMatrix.shape[0]) == 0:
+			bar_length = 100
+			percent = float(i) / userBeerReviewMatrix.shape[0]
+			hashes = '#' * int(round(percent * bar_length))
+			spaces = ' ' * (bar_length - len(hashes))
+			sys.stdout.write("\rPercent: [{0}] {1}%".format(hashes + spaces, int(round(percent * 100))))
+			sys.stdout.flush()
+			
+	print '\n[INFO] Finished calculated review magnitude vector'
+	rowMagnitudeArray = np.array(rowMagnitudes)
+		
+	#Calculate/load dot product
+	print '\n[INFO] Performing multiplication on transpose....'
+	startTime = time.clock()				 #Time for profiling
+	transpose = userBeerReviewMatrix.transpose(copy=True)
+	
+	resultantMatrix = userBeerReviewMatrix * transpose
+	
+	reviewTimeToProcess = time.clock() - startTime
+	print '[INFO] Completed multiplication on transpose in ' + str(reviewTimeToProcess) + ' seconds'
+		
+	if resultantMatrix.shape[0] != resultantMatrix.shape[1]:  
+		print '[ERROR] Invalid matrix dimensions! Similarity matrix should be square, user-user!'
+	
+	#Split array into manageable parts in memory (rows x #beers)
+	rows = 100
+	maxRows = resultantMatrix.shape[1]
+	rowMagnitudeArrayDivisor = 1/rowMagnitudeArray	  #Divisor for converting to cosine form	
+	
+	print '\n[INFO] Calculating user similarity matrix...'
+	for i in range(0,maxRows,rows):
+		if i + rows < maxRows:
+			slicedMatrix = resultantMatrix[i:i+rows]		#Slice the matrix to a smaller subset
+		else:
+			slicedMatrix = resultantMatrix[i:]			  #Catch last bit of the matrix
+		  
+		try:
+			slicedMatrix = slicedMatrix.multiply(rowMagnitudeArrayDivisor)
+			testArrayTrans = slicedMatrix.transpose()					   #Transpose in order to multiply by sliced row magnitude
+			slicedRowMag = rowMagnitudeArrayDivisor[i:i+rows]			   #Slice by subset
+			testArrayTrans = np.multiply(testArrayTrans, slicedRowMag)	  #By ELEMENT multiplication
+			  
+			restoredMatrix = testArrayTrans.transpose()					 #Back to original dimensions
+			  
+			resultantMatrix[i:i+rows] = restoredMatrix
+		except Exception as e:
+			print '[ERROR] Failed to do matrix multiplication. Are you sure you are using the correct magnitude vector? Try setting calculateMagnitudeVector = True and re-running'
+			print e
+			
+		#TODO fix progress bar
+		sys.stdout.write("Working...")
+		sys.stdout.flush()
+	  
+	print '\n[INFO] Similarity matrix complete!'
+	# print str(resultantMatrix.todense())
+	print '---------------'
+		 
+	print '\n[INFO] Converting matrix to dense array form....' 
+	arrayForm = resultantMatrix.toarray()
+	print '[INFO] Converting matrix to triangular form.... '
+	triMatrix = np.tril(arrayForm)
+	print '[INFO] Conversion complete!'
+	if repickleSimilarityMatrix:
+		print '[INFO] Pickling triangular matrix'
+		
+		try:
+			similarityMatrix = open("similatiryMatrix" + reviewThresholdString + ".pickle", 'w')
+			
+			pickle.dump(triMatrix, similarityMatrix)
+			print '[INFO] Finished pickling triangular similarity matrix'
+		
+		except Exception as e:
+			print '[ERROR] Pickling operation failed!: ' + str(e)
+	else:
+		'[INFO] Pickling disabled. Terminating....'
 
-    resultantMatrix = userBeerReviewArray * transpose
-    
-    reviewTimeToProcess = time.clock() - startTime
-    print '[INFO] Completed multiplication on transpose in ' + str(reviewTimeToProcess) + ' seconds'
-    
-    #Pickle the dot product
-    try:
-        print '[INFO] Pickling the dot product matrix out to dotProductMatrix.pickle'
-        #Dump out to file
-        dumpfile = open("dotProductMatrix.pickle", 'w')
-        pickle.dump(resultantMatrix, dumpfile)
-        print '[INFO] Pickling successful'
-     
-    except Exception as e:
-        print '[ERROR] Pickling unsuccessful: '
-        print e
-    
-else:
-    try:
-        print '\n[INFO] Reading serialized (PICKLED!) dot product matrix....'
-        file = open("dotProductMatrix.pickle", 'r')
-        resultantMatrix = pickle.load(file)
-        print '[INFO] Successfully opened pickled dot product matrix!'
-    except Exception as e:
-        print '[ERROR] Opening pickled filed failed!: ' + str(e)
-    
-    
-#Split array into manageable parts in memory (rows x #beers)
-rows = 100
-maxRows = resultantMatrix.shape[1]
-rowMagnitudeArrayDivisor = 1/rowMagnitudeArray      #Divisor for converting to cosine form    
+else:		#Load pickled similarity matrix
+	# Open the serialized user-beer review sparse array from pickled file
+	try:
+		print '[INFO] Reading serialized (PICKLED!) triangular similarity matrix.....'
+		file = open("similatiryMatrix" + reviewThresholdString + ".pickle", 'r')
+		similarityMatrix = pickle.load(file)
+		print '[INFO] Successfully opened pickled triangular similarity matrix!'
+	except Exception as e:
+		print '[ERROR] Opening pickled file failed!: ' + str(e)
 
-# print '\n[INFO] Beginning to calculate user similarity matrix...'
-# for i in range(0,100,maxRows):
-#     slicedMatrix = resultantMatrix[i:i+rows]
-#     
-#     slicedMatrix = slicedMatrix.multiply(rowMagnitudeArrayDivisor)
-#     
-#     testArrayTrans = slicedMatrix.transpose()                       #Transpose in order to multiply by sliced row magnitude
-#     slicedRowMag = rowMagnitudeArrayDivisor[i:i+rows]                 #Slice by subset
-#     testArrayTrans = np.multiply(testArrayTrans, slicedRowMag)      #By ELEMENT multiplication
-#     
-#     restoredMatrix = testArrayTrans.transpose()                     #Back to original dimensions
-#     
-#     resultantMatrix[i:i+rows] = restoredMatrix
-#     
-#     if i % int(0.01*maxRows) == 0:
-#         bar_length = 100
-#         percent = float(i) / maxRows.shape[0]
-#         hashes = '#' * int(round(percent * bar_length))
-#         spaces = ' ' * (bar_length - len(hashes))
-#         sys.stdout.write("\rPercent: [{0}] {1}%".format(hashes + spaces, int(round(percent * 100))))
-#         sys.stdout.flush()
-# 
-# print '[INFO] Similarity matrix complete!'
-
-# print str(testArrayTrans[0][0]) + ', ' + str(testArrayTrans[0][0])
-    
-# #Divide by magnitudes
-# print '[INFO] Dividing multiplied matrix by magnitude array (part 1)'
-# rowMagnitudeArrayDivisor = 1/rowMagnitudeArray
-# resultantMatrix.multiply(rowMagnitudeArrayDivisor)
-# 
-# print '[INFO] Dividing multiplied matrix by magnitude array (part 2)'
-# rowMagnitudeArrayDivisor.transpose()
-# resultantMatrix.multiply(rowMagnitudeArrayDivisor)
-# 
-# print '[INFO] Resultant matrix division complete!'
+print similarityMatrix[0]
 
 
