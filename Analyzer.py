@@ -6,12 +6,12 @@ from numpy import int8
 from scipy import float16
 import pickle
 
-calculateSimilarityMatrix = False		#Re-calculate similarity matrix from user-beer-review sparse matrix?
-repickleSimilarityMatrix = False		#Over-write similarity matrix? Note it is a BIG file... (~1.5gb)
-reviewThresholdString = "-T25"				#File extension for review threshold (set in largeTextProcessor), #=num reviews
+calculateSimilarityMatrix = True		#Re-calculate similarity matrix from user-beer-review sparse matrix?
+repickleSimilarityMatrix = True		#Over-write similarity matrix? Note it is a BIG file... (~1.5gb)
+reviewThresholdString = "-T3"				#File extension for review threshold (set in largeTextProcessor), #=num reviews
 
 if calculateSimilarityMatrix:
-	if repickleSimilarityMatrix:
+	if not repickleSimilarityMatrix:
 		print '[WARNING] This is a TEST run! The output will not be pickled.'
 	
 	# Open the serialized user-beer review sparse array from pickled file
@@ -60,9 +60,48 @@ if calculateSimilarityMatrix:
 	reviewTimeToProcess = time.clock() - startTime
 	print '[INFO] Completed multiplication on transpose in ' + str(reviewTimeToProcess) + ' seconds'
 		
-	if resultantMatrix.shape[0] != resultantMatrix.shape[1]:  
+	if resultantMatrix.shape[0] != resultantMatrix.shape[1]:  #questionable...this is comparing the first row to the second row I believe...
 		print '[ERROR] Invalid matrix dimensions! Similarity matrix should be square, user-user!'
-	
+
+	print resultantMatrix.shape[0]
+	similarityMatrix = np.empty([resultantMatrix.shape[0], resultantMatrix.shape[0]], dtype = float)
+	size = resultantMatrix.shape[0]
+
+	for i in range (0, size):
+		for j in range(0, size):
+			
+			similarityMatrix[i][j] = resultantMatrix[i,j]/(rowMagnitudes[i]*rowMagnitudes[j])
+		print "Row: " + str(i) + "/" + str(len(similarityMatrix))
+
+	similarityDump = open("SimilarityMatrix.pickle", "w")
+	pickle.dump(similarityMatrix, similarityDump)
+
+	for i in range (0, 10):
+		for j in range(0, 10):
+			print similarityMatrix[i][j],
+		print ""
+	print "end program"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'''	
 	#Split array into manageable parts in memory (rows x #beers)
 	rows = 100
 	maxRows = resultantMatrix.shape[1]
@@ -121,10 +160,10 @@ else:		#Load pickled similarity matrix
 		print '[INFO] Reading serialized (PICKLED!) triangular similarity matrix.....'
 		file = open("similatiryMatrix" + reviewThresholdString + ".pickle", 'r')
 		similarityMatrix = pickle.load(file)
-		print '[INFO] Successfully opened pickled triangular similarity matrix!'
+		#print '[INFO] Successfully opened pickled triangular similarity matrix!'
+		print similarityMatrix[100]
+		print test
 	except Exception as e:
 		print '[ERROR] Opening pickled file failed!: ' + str(e)
 
-print similarityMatrix[0]
-
-
+'''
